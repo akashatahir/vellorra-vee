@@ -107,3 +107,5 @@ If product info exists above, answer about THAT specific product. Do NOT ask "wh
 @app.get("/")
 def root():
     return {"message": "Velloraa backend is alive 💜"}
+from mangum import Mangum
+handler = Mangum(app)
