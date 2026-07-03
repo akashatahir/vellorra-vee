@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
-model = genai.GenerativeModel('gemini-2.5-flash')
+model = genai.GenerativeModel('gemini-1.5-flash')
 
 app = FastAPI()
 
@@ -84,7 +84,8 @@ Answer about the product above if info exists. Keep it SHORT.
         return {"reply": reply}
     except Exception as e:
         print(f"Gemini error: {e}")
-return {"reply": f"Error: {str(e)}"} 
+        return {"reply": f"Error: {str(e)}"}
+
 @app.get("/")
 def root():
     return {"message": "Velloraa backend is alive 💜"}
