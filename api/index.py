@@ -84,8 +84,7 @@ Answer about the product above if info exists. Keep it SHORT.
         return {"reply": reply}
     except Exception as e:
         print(f"Gemini error: {e}")
-        return {"reply": "Bestie my brain lagged 😅 Try again!"}
-
+return {"reply": f"Error: {str(e)}"} 
 @app.get("/")
 def root():
     return {"message": "Velloraa backend is alive 💜"}
