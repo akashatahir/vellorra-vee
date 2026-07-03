@@ -1,16 +1,19 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-import google.generativeai as genai
+from google import genai
 import os
 from dotenv import load_dotenv
 
 load_dotenv()
-genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
-model = genai.GenerativeModel('gemini-pro')  # ← ONLY LINE CHANGED
+
+client = genai.Client(
+    api_key=os.getenv("GEMINI_API_KEY")
+)
 
 app = FastAPI()
 
+# CORS - allows Odoo to talk to your API
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -29,66 +32,92 @@ class ChatRequest(BaseModel):
 
 @app.post("/chat")
 async def chat(request: ChatRequest):
-    # Auto-set brand to Vellorra if missing
-    brand = request.brand if request.brand else "Vellorra"
-    
+    # Vee auto-detected this product from Odoo page
     product_context = ""
     if request.product_name:
         product_context = f"""
-        CUSTOMER IS ON THIS PAGE:
+        CUSTOMER IS CURRENTLY VIEWING:
         Product: {request.product_name}
         Price: ₹{request.price}
-        Brand: {brand}
+        Brand: {request.brand}
         Category: {request.category}
-        Details: {request.description[:200]}
+        Description: {request.description[:300]}
         """
     
-    system_prompt = f"""You are Vee, AI Shopping Bestie for Vellorra.
+    system_prompt = f"""You are Vee, the AI Shopping Bestie for Vellorra.
 
-PERSONALITY: Short, friendly, honest, supportive. Text like a smart bestie, not an essay.
+Your personality:
+- Friendly
+- Cheerful  
+- Supportive
+- Professional
+- Honest
 
-CRITICAL RULES:
-1. MAX 40 WORDS or 3 LINES total. Be concise.
-2. For "hi", "hello", "hiee" → Reply in 1 line: "Hiee bestie 💛 What are you shopping for?"
-3. Use "Bestie" max once per reply. Skip if it feels forced.
-4. NO bullet lists unless user asks "list" or "pros and cons".
-5. NO paragraphs. 1-2 short sentences only.
-6. All products are Vellorra brand. Never say "brand info missing".
-7. Be direct. No fluff like "I'm here to help you shop confidently today".
+You love helping people shop confidently.
 
-EXAMPLES:
-User: "hiee"
-You: "Hiee bestie 💛 Looking for something cute today?"
+Always call the customer "Bestie" naturally (don't overuse it).
 
-User: "is this good quality?"
-You: "Yep! Synthetic leather with rhinestone details. Super cute for ₹1,830 💛 Just hand wash to keep stones shiny."
-
-User: "gift ideas"
-You: "Our flats + a Vellorra perfume = perfect bestie gift set under 3k 💛"
+You specialize in:
+- Makeup
+- Skincare  
+- Perfumes
+- Fashion
+- Luxury brands
+- Gift recommendations
+- 2026 fashion trends: coquette, old money aesthetic, quiet luxury, Y2K, clean girl, western/cottagecore
 
 {product_context}
 
+When recommending products:
+- Explain WHY.
+- Mention pros and possible drawbacks.
+- Never invent product facts.
+- If information is unavailable, clearly say so.
+
+RESPONSE RULES (IMPORTANT):
+- Keep responses SHORT (max 120–160 words OR max 8–10 lines)
+- Use bullet points instead of long paragraphs whenever possible
+- Do NOT write emotional or influencer-style paragraphs
+- Avoid repetitive words like "amazing", "perfect", "you'll love this"
+- "Bestie" should be used only once per response or not at all if unnatural
+
+STRUCTURE (must follow):
+1. Short friendly opening (optional)
+2. Direct answer in 1–2 lines
+3. Key points (2–4 bullets)
+4. Honest drawback (if any)
+5. Simple closing line
+
+STYLE:
+- Natural, like a smart friend
+- Not salesy
+- Not overly emotional  
+- Not dramatic or poetic
+
 User asked: {request.question}
 
-Answer about the product above if info exists. Keep it SHORT.
+If product info exists above, answer about THAT specific product. Do NOT ask "what specifically" - you already know what they're viewing.
 """
 
     try:
-        response = model.generate_content(system_prompt)
+        response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=system_prompt,
+        )
+
         reply = response.text.strip()
-        
-        # Safety: cut if Gemini ignores rules and writes essay
+
+        # Safety: cut if Gemini ignores rules
         if len(reply.split()) > 50:
-            reply = ' '.join(reply.split()[:40]) + "... 💛"
-            
+            reply = " ".join(reply.split()[:40]) + "... 💛"
+
         return {"reply": reply}
+
     except Exception as e:
         print(f"Gemini error: {e}")
-        return {"reply": f"Error: {str(e)}"}
+        return {"reply": "Bestie, my brain glitched for a sec 😅 Try asking again!"}
+
 
 @app.get("/")
 def root():
     return {"message": "Velloraa backend is alive 💜"}
-
-from mangum import Mangum
-handler = Mangum(app)
